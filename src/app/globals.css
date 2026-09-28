@@ -1,0 +1,13 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    background-color: #020617;
+    color: #f8fafc;
+  }
+}
+
+/* Custom smooth transitions */
+* {
+  box-sizing: border-box;
+}

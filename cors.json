@@ -1,0 +1,20 @@
+[
+  {
+    "origin": [
+      "https://convertall-site.web.app",
+      "https://convertall-site.firebaseapp.com",
+      "https://convertall.site",
+      "https://www.convertall.site",
+      "http://localhost:3000"
+    ],
+    "method": ["GET", "PUT", "POST", "HEAD", "DELETE", "OPTIONS"],
+    "responseHeader": [
+      "Content-Type",
+      "Content-Length",
+      "Content-Range",
+      "Content-Disposition",
+      "Access-Control-Allow-Origin"
+    ],
+    "maxAgeSeconds": 3600
+  }
+]

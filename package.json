@@ -1,0 +1,43 @@
+{
+  "name": "universal-file-converter",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "test": "npx tsx --test src/__tests__/**/*.test.ts",
+    "deploy": "bash scripts/deploy.sh",
+    "deploy:production": "bash scripts/deploy-production.sh",
+    "cleanup": "node --import tsx/esm src/scripts/cleanup.ts"
+  },
+  "dependencies": {
+    "@google-cloud/storage": "^7.15.0",
+    "@types/archiver": "^8.0.0",
+    "archiver": "^8.0.0",
+    "clsx": "^2.1.1",
+    "heic-convert": "^2.1.0",
+    "lucide-react": "^0.475.0",
+    "next": "16.3.2",
+    "pdf-lib": "^1.17.1",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "sharp": "^0.33.5",
+    "tailwind-merge": "^3.0.1",
+    "uuid": "^11.0.5"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/heic-convert": "^2.1.0",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@types/uuid": "^10.0.0",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.2",
+    "tailwindcss": "^4",
+    "tsx": "^4.19.2",
+    "typescript": "^5"
+  }
+}

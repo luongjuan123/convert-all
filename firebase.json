@@ -1,0 +1,20 @@
+{
+  "hosting": {
+    "site": "convertall-site",
+    "public": "public",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "run": {
+          "serviceId": "universal-file-converter",
+          "region": "us-central1"
+        }
+      }
+    ]
+  }
+}
