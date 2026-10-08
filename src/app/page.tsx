@@ -57,7 +57,7 @@ export default function HomePage() {
 
       {/* Monetization Ad Slot - Max 1 Banner on Homepage */}
       <div className="mx-auto max-w-4xl">
-        <AdSlot placement="homepageBottom" format="horizontal" />
+        <AdSlot placement="homepageBottom" format="auto" />
       </div>
 
       {/* Features summary */}

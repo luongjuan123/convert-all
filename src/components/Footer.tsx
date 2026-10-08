@@ -40,9 +40,11 @@ export const Footer: React.FC = () => {
             <h3 className="text-sm font-semibold uppercase tracking-wider text-white">Converters</h3>
             <ul className="mt-4 space-y-2 text-sm">
               <li><Link href="/compress-pdf" className="hover:text-cyan-400 transition">Compress PDF</Link></li>
-              <li><Link href="/compress-video" className="hover:text-cyan-400 transition">Compress Video</Link></li>
               <li><Link href="/merge-pdf" className="hover:text-cyan-400 transition">Merge PDF</Link></li>
+              <li><Link href="/markdown-to-pdf" className="hover:text-cyan-400 transition">Markdown to PDF</Link></li>
+              <li><Link href="/images-to-pdf" className="hover:text-cyan-400 transition">Images to PDF</Link></li>
               <li><Link href="/split-pdf" className="hover:text-cyan-400 transition">Split PDF</Link></li>
+              <li><Link href="/compress-video" className="hover:text-cyan-400 transition">Compress Video</Link></li>
               <li><Link href="/wav-to-mp3" className="hover:text-cyan-400 transition">WAV to MP3</Link></li>
             </ul>
           </div>

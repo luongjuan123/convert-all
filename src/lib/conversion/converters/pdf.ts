@@ -4,7 +4,7 @@ import { execFile } from "child_process";
 import { promisify } from "util";
 import { PDFDocument } from "pdf-lib";
 import { ConverterHandler, ConversionResult, ConversionOptions, OutputArtifact } from "@/lib/types/converter";
-import { runPythonPdfConvert } from "../python-helper";
+import { runPythonPdfConvert, runPythonMultiConvert } from "../python-helper";
 
 const execFileAsync = promisify(execFile);
 const MAX_PDF_BYTES = 209715200; // 200MB limit for PDF processing
@@ -18,21 +18,7 @@ async function collectPdfImageArtifacts(
   const base = path.basename(outputPath, ext);
   const artifacts: OutputArtifact[] = [];
 
-  // Check if single-page output exists directly
-  try {
-    const singleStat = await fs.stat(outputPath);
-    if (singleStat.size > 0) {
-      artifacts.push({
-        id: "page-1",
-        filename: path.basename(outputPath),
-        size: singleStat.size,
-        mimeType,
-      });
-      return { outputPath, outputSize: singleStat.size, artifacts };
-    }
-  } catch {}
-
-  // Check for multi-page pattern: ${base}_page_1${ext}, etc.
+  // Check for multi-page pattern first: ${base}_page_1${ext}, etc.
   const files = await fs.readdir(dir);
   const escapedExt = ext.replace(".", "\\.");
   const pageRegex = new RegExp(`^${base}_page_(\\d+)${escapedExt}$`);
@@ -46,30 +32,44 @@ async function collectPdfImageArtifacts(
       return numA - numB;
     });
 
-  if (matchingFiles.length === 0) {
-    throw new Error("No image output files were generated from PDF.");
+  if (matchingFiles.length > 0) {
+    for (let i = 0; i < matchingFiles.length; i++) {
+      const filename = matchingFiles[i];
+      const filePath = path.join(dir, filename);
+      const stat = await fs.stat(filePath);
+      artifacts.push({
+        id: `page-${i + 1}`,
+        filename,
+        size: stat.size,
+        mimeType,
+      });
+    }
+
+    // Ensure primary outputPath exists with first page content
+    const firstFilePath = path.join(dir, matchingFiles[0]);
+    try {
+      await fs.copyFile(firstFilePath, outputPath);
+    } catch {}
+
+    const primaryStat = await fs.stat(outputPath);
+    return { outputPath, outputSize: primaryStat.size, artifacts };
   }
 
-  for (let i = 0; i < matchingFiles.length; i++) {
-    const filename = matchingFiles[i];
-    const filePath = path.join(dir, filename);
-    const stat = await fs.stat(filePath);
-    artifacts.push({
-      id: `page-${i + 1}`,
-      filename,
-      size: stat.size,
-      mimeType,
-    });
-  }
-
-  // Copy first page to outputPath if outputPath does not exist
-  const firstFilePath = path.join(dir, matchingFiles[0]);
+  // Fallback: Check if single-page output exists directly
   try {
-    await fs.copyFile(firstFilePath, outputPath);
+    const singleStat = await fs.stat(outputPath);
+    if (singleStat.size > 0) {
+      artifacts.push({
+        id: "page-1",
+        filename: path.basename(outputPath),
+        size: singleStat.size,
+        mimeType,
+      });
+      return { outputPath, outputSize: singleStat.size, artifacts };
+    }
   } catch {}
 
-  const primaryStat = await fs.stat(outputPath);
-  return { outputPath, outputSize: primaryStat.size, artifacts };
+  throw new Error("No image output files were generated from PDF.");
 }
 
 export const pdfToDocxConverter: ConverterHandler = {
@@ -245,22 +245,96 @@ export const mergePdfConverter: ConverterHandler = {
   outputExtension: ".pdf",
   maxSizeBytes: MAX_PDF_BYTES,
   resourceClass: "medium",
-  timeoutMs: 120000,
-  async convert(inputPath: string, outputPath: string): Promise<ConversionResult> {
+  timeoutMs: 180000,
+  async convert(inputPath: string, outputPath: string, options?: ConversionOptions): Promise<ConversionResult> {
     try {
-      const mergedPdf = await PDFDocument.create();
-      const pdfBytes = await fs.readFile(inputPath);
-      const pdf = await PDFDocument.load(pdfBytes);
-      const copiedPages = await mergedPdf.copyPages(pdf, pdf.getPageIndices());
-      copiedPages.forEach((page) => mergedPdf.addPage(page));
+      const additional = Array.isArray(options?.additionalInputPaths) ? (options?.additionalInputPaths as string[]) : [];
+      const allPaths = [inputPath, ...additional];
 
-      const mergedBytes = await mergedPdf.save();
-      await fs.writeFile(outputPath, mergedBytes);
+      const res = await runPythonMultiConvert("merge", allPaths, outputPath, 180000);
+      if (!res.success) {
+        return {
+          success: false,
+          error: res.error || "Failed to merge PDF documents. One of the files may be corrupted or password-protected.",
+        };
+      }
 
       const stat = await fs.stat(outputPath);
       return { success: true, outputPath, outputSize: stat.size, mimeType: "application/pdf" };
     } catch (err: any) {
-      return { success: false, error: "Failed to merge PDF documents: " + err.message };
+      return {
+        success: false,
+        error: "Failed to merge PDF documents: " + (err.message || "Unknown error"),
+      };
+    }
+  },
+};
+
+export const markdownToPdfConverter: ConverterHandler = {
+  id: "markdown-to-pdf",
+  name: "Markdown to PDF",
+  category: "pdf",
+  inputMimeTypes: ["text/markdown", "text/x-markdown", "text/plain"],
+  inputExtensions: [".md", ".markdown"],
+  outputFormat: "pdf",
+  outputMimeType: "application/pdf",
+  outputExtension: ".pdf",
+  maxSizeBytes: 52428800, // 50MB
+  resourceClass: "small",
+  timeoutMs: 60000,
+  async convert(inputPath: string, outputPath: string): Promise<ConversionResult> {
+    try {
+      const res = await runPythonPdfConvert("markdown_to_pdf", inputPath, outputPath, 60000);
+      if (!res.success) {
+        return {
+          success: false,
+          error: res.error || "Failed to convert Markdown to PDF document.",
+        };
+      }
+
+      const stat = await fs.stat(outputPath);
+      return { success: true, outputPath, outputSize: stat.size, mimeType: "application/pdf" };
+    } catch (err: any) {
+      return {
+        success: false,
+        error: "Failed to convert Markdown to PDF: " + (err.message || "Unknown error"),
+      };
+    }
+  },
+};
+
+export const imagesToPdfConverter: ConverterHandler = {
+  id: "images-to-pdf",
+  name: "Images to PDF",
+  category: "pdf",
+  inputMimeTypes: ["image/jpeg", "image/jpg", "image/png", "image/webp"],
+  inputExtensions: [".jpg", ".jpeg", ".png", ".webp"],
+  outputFormat: "pdf",
+  outputMimeType: "application/pdf",
+  outputExtension: ".pdf",
+  maxSizeBytes: 104857600, // 100MB per image
+  resourceClass: "medium",
+  timeoutMs: 180000,
+  async convert(inputPath: string, outputPath: string, options?: ConversionOptions): Promise<ConversionResult> {
+    try {
+      const additional = Array.isArray(options?.additionalInputPaths) ? (options?.additionalInputPaths as string[]) : [];
+      const allPaths = [inputPath, ...additional];
+
+      const res = await runPythonMultiConvert("images_to_pdf", allPaths, outputPath, 180000);
+      if (!res.success) {
+        return {
+          success: false,
+          error: res.error || "Failed to convert images to PDF. An image may be corrupted or in an unsupported format.",
+        };
+      }
+
+      const stat = await fs.stat(outputPath);
+      return { success: true, outputPath, outputSize: stat.size, mimeType: "application/pdf" };
+    } catch (err: any) {
+      return {
+        success: false,
+        error: "Failed to convert images to PDF: " + (err.message || "Unknown error"),
+      };
     }
   },
 };
@@ -349,6 +423,8 @@ export const pdfConverters = [
   jpgToPdfConverter,
   pngToPdfConverter,
   mergePdfConverter,
+  markdownToPdfConverter,
+  imagesToPdfConverter,
   splitPdfConverter,
   compressPdfConverter,
 ];

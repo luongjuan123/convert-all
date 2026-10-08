@@ -17,11 +17,19 @@ import {
   Trash2,
   Sparkles,
   Layers,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import { BatchItem, formatBytes } from "./types";
 
 interface FileItemRowProps {
   item: BatchItem;
+  index?: number;
+  isMergeMode?: boolean;
+  canMoveUp?: boolean;
+  canMoveDown?: boolean;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
   onPreview: (item: BatchItem) => void;
   onStart: (id: string) => void;
   onCancel: (id: string) => void;
@@ -49,6 +57,12 @@ function getFileIcon(filename: string) {
 
 export const FileItemRow: React.FC<FileItemRowProps> = ({
   item,
+  index = 0,
+  isMergeMode = false,
+  canMoveUp = false,
+  canMoveDown = false,
+  onMoveUp,
+  onMoveDown,
   onPreview,
   onStart,
   onCancel,
@@ -84,6 +98,11 @@ export const FileItemRow: React.FC<FileItemRowProps> = ({
     <div className="group relative flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-slate-800/80 bg-slate-900/60 p-4 transition-all duration-200 hover:border-slate-700 hover:bg-slate-900/90">
       {/* Left side: Icon + Names + Size */}
       <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
+        {isMergeMode && (
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-cyan-500/15 border border-cyan-500/30 text-cyan-400 font-bold text-xs shadow-sm">
+            #{index + 1}
+          </div>
+        )}
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-800">
           {getFileIcon(file.name)}
         </div>
@@ -98,21 +117,27 @@ export const FileItemRow: React.FC<FileItemRowProps> = ({
           {/* Subtitle / Processing information */}
           {stage === "pending" && (
             <div className="mt-1 flex items-center gap-2">
-              <span className="text-xs text-slate-400">Target:</span>
-              {item.availableConverters.length > 0 ? (
-                <select
-                  value={item.converterId}
-                  onChange={(e) => onConverterChange(item.id, e.target.value)}
-                  className="rounded bg-slate-950 border border-slate-800 px-2 py-0.5 text-xs font-medium text-cyan-300 focus:outline-none focus:border-cyan-500"
-                >
-                  {item.availableConverters.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.outputFormat.toUpperCase()} ({c.name})
-                    </option>
-                  ))}
-                </select>
+              {isMergeMode ? (
+                <span className="text-xs text-cyan-400/90 font-medium">Position #{index + 1} in combined PDF</span>
               ) : (
-                <span className="text-xs text-slate-400">Detecting converters...</span>
+                <>
+                  <span className="text-xs text-slate-400">Target:</span>
+                  {item.availableConverters.length > 0 ? (
+                    <select
+                      value={item.converterId}
+                      onChange={(e) => onConverterChange(item.id, e.target.value)}
+                      className="rounded bg-slate-950 border border-slate-800 px-2 py-0.5 text-xs font-medium text-cyan-300 focus:outline-none focus:border-cyan-500"
+                    >
+                      {item.availableConverters.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.outputFormat.toUpperCase()} ({c.name})
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <span className="text-xs text-slate-400">Detecting converters...</span>
+                  )}
+                </>
               )}
             </div>
           )}
@@ -192,21 +217,54 @@ export const FileItemRow: React.FC<FileItemRowProps> = ({
       <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
         {stage === "pending" && (
           <>
-            <button
-              type="button"
-              onClick={() => onStart(item.id)}
-              className="inline-flex items-center gap-1 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/30 px-3 py-1.5 text-xs font-semibold transition"
-            >
-              <Sparkles className="h-3.5 w-3.5" /> Convert
-            </button>
-            <button
-              type="button"
-              onClick={() => onRemove(item.id)}
-              className="inline-flex items-center justify-center h-8 w-8 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition"
-              title="Remove file"
-            >
-              <Trash2 className="h-4 w-4" />
-            </button>
+            {isMergeMode ? (
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={onMoveUp}
+                  disabled={!canMoveUp}
+                  className="inline-flex items-center justify-center h-8 w-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 disabled:opacity-30 disabled:pointer-events-none transition"
+                  title="Move earlier in order"
+                >
+                  <ArrowUp className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={onMoveDown}
+                  disabled={!canMoveDown}
+                  className="inline-flex items-center justify-center h-8 w-8 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 disabled:opacity-30 disabled:pointer-events-none transition"
+                  title="Move later in order"
+                >
+                  <ArrowDown className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onRemove(item.id)}
+                  className="inline-flex items-center justify-center h-8 w-8 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition"
+                  title="Remove file"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => onStart(item.id)}
+                  className="inline-flex items-center gap-1 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/30 px-3 py-1.5 text-xs font-semibold transition"
+                >
+                  <Sparkles className="h-3.5 w-3.5" /> Convert
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onRemove(item.id)}
+                  className="inline-flex items-center justify-center h-8 w-8 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition"
+                  title="Remove file"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </>
+            )}
           </>
         )}
 

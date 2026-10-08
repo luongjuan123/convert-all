@@ -1,0 +1,28 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '--build-arg'
+      - 'NEXT_PUBLIC_ADSENSE_CLIENT_ID=${_ADSENSE_CLIENT_ID}'
+      - '--build-arg'
+      - 'NEXT_PUBLIC_ADSENSE_TOP_SLOT=${_ADSENSE_TOP_SLOT}'
+      - '--build-arg'
+      - 'NEXT_PUBLIC_ADSENSE_BOTTOM_SLOT=${_ADSENSE_BOTTOM_SLOT}'
+      - '--build-arg'
+      - 'NEXT_PUBLIC_ANALYTICS_ID=${_ANALYTICS_ID}'
+      - '--build-arg'
+      - 'PUBLIC_SITE_URL=${_SITE_URL}'
+      - '-t'
+      - '${_IMAGE_TAG}'
+      - '.'
+images:
+  - '${_IMAGE_TAG}'
+substitutions:
+  _IMAGE_TAG: ''
+  _ADSENSE_CLIENT_ID: 'pub-6752118609720794'
+  _ADSENSE_TOP_SLOT: '6763399568'
+  _ADSENSE_BOTTOM_SLOT: '5901744038'
+  _ANALYTICS_ID: ''
+  _SITE_URL: 'https://convertall.site'
+options:
+  logging: CLOUD_LOGGING_ONLY

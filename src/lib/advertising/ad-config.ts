@@ -1,5 +1,3 @@
-import { siteConfig } from "@/config/site";
-
 export type AdPlacement = "afterConverter" | "beforeFooter" | "homepageBottom";
 
 export interface AdConfig {
@@ -12,12 +10,44 @@ export interface AdConfig {
   maxAdsOnHomepage: number;
 }
 
+/**
+ * Normalizes any variation of an AdSense publisher ID into standard forms:
+ * Handles: "ca-pub-1234567890123456", "pub-1234567890123456", or "1234567890123456"
+ */
+export function formatPublisherId(rawId?: string): {
+  pubId: string;       // e.g. "pub-1234567890123456" (used for ads.txt)
+  clientTag: string;   // e.g. "ca-pub-1234567890123456" (used for data-ad-client and script param)
+  rawDigits: string;   // e.g. "1234567890123456"
+  isValid: boolean;
+} {
+  if (!rawId || typeof rawId !== "string") {
+    return { pubId: "", clientTag: "", rawDigits: "", isValid: false };
+  }
+  const trimmed = rawId.trim();
+  const digitsOnly = trimmed.replace(/^(ca-)?pub-/, "").replace(/[^0-9]/g, "");
+  if (!digitsOnly) {
+    return { pubId: "", clientTag: "", rawDigits: "", isValid: false };
+  }
+  return {
+    pubId: `pub-${digitsOnly}`,
+    clientTag: `ca-pub-${digitsOnly}`,
+    rawDigits: digitsOnly,
+    isValid: digitsOnly.length >= 10,
+  };
+}
+
+const rawClientId = process.env.NEXT_PUBLIC_ADSENSE_CLIENT_ID || "";
+const formattedPub = formatPublisherId(rawClientId);
+
 export const adConfig: AdConfig = {
-  enabled: Boolean(process.env.NEXT_PUBLIC_ADSENSE_CLIENT_ID || process.env.NEXT_PUBLIC_SHOW_AD_PLACEHOLDERS === "true"),
-  clientId: process.env.NEXT_PUBLIC_ADSENSE_CLIENT_ID || "",
-  topSlot: process.env.NEXT_PUBLIC_ADSENSE_TOP_SLOT || "1234567890",
-  bottomSlot: process.env.NEXT_PUBLIC_ADSENSE_BOTTOM_SLOT || "0987654321",
-  showPlaceholdersInDev: process.env.NODE_ENV === "development" || process.env.NEXT_PUBLIC_SHOW_AD_PLACEHOLDERS === "true",
+  enabled: Boolean(rawClientId || process.env.NEXT_PUBLIC_SHOW_AD_PLACEHOLDERS === "true"),
+  clientId: formattedPub.isValid ? formattedPub.clientTag : rawClientId,
+  topSlot: process.env.NEXT_PUBLIC_ADSENSE_TOP_SLOT || "6763399568",
+  bottomSlot: process.env.NEXT_PUBLIC_ADSENSE_BOTTOM_SLOT || "5901744038",
+  showPlaceholdersInDev:
+    process.env.NEXT_PUBLIC_SHOW_AD_PLACEHOLDERS === "true" ||
+    (process.env.NODE_ENV === "development" && !rawClientId),
   maxAdsPerConverterPage: 2,
   maxAdsOnHomepage: 1,
 };
+

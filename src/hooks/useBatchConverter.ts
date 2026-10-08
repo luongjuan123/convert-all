@@ -26,6 +26,20 @@ export function useBatchConverter(defaultTargetFormat?: string, toolSlug?: strin
   const activeConversionsCount = useRef<number>(0);
   const queueRunning = useRef<boolean>(false);
 
+  // Merge Mode state
+  const isMergeTool = toolSlug === "merge-pdf" || toolSlug === "images-to-pdf";
+  const [mergeStatus, setMergeStatus] = useState<"idle" | "uploading" | "merging" | "completed" | "failed">("idle");
+  const [mergeResult, setMergeResult] = useState<{
+    jobId: string;
+    outputFilename: string;
+    outputSize: number;
+    outputMimeType?: string;
+    downloadUrl: string;
+    previewUrl: string;
+  } | null>(null);
+  const [mergeError, setMergeError] = useState<string | null>(null);
+  const mergeInProgress = useRef<boolean>(false);
+
   // Update item by ID
   const updateItem = useCallback((id: string, updater: Partial<BatchItem> | ((prev: BatchItem) => BatchItem)) => {
     setItems((prev) =>
@@ -47,14 +61,34 @@ export function useBatchConverter(defaultTargetFormat?: string, toolSlug?: strin
     try {
       const currentItems = itemsRef.current;
 
-      // 1. Check if any "waiting_convert" item can be converted
-      const convertingCount = currentItems.filter((i) => i.stage === "converting").length;
-      if (convertingCount < MAX_CONCURRENT_CONVERSIONS) {
-        const nextToConvert = currentItems.find(
-          (i) => i.stage === "verifying" && i.jobId && (i as any)._readyToConvert
-        );
-        if (nextToConvert) {
-          executeConversion(nextToConvert.id, nextToConvert.attemptId);
+      // 1. Individual conversion vs Merge conversion
+      if (!isMergeTool) {
+        const convertingCount = currentItems.filter((i) => i.stage === "converting").length;
+        if (convertingCount < MAX_CONCURRENT_CONVERSIONS) {
+          const nextToConvert = currentItems.find(
+            (i) => i.stage === "verifying" && i.jobId && (i as any)._readyToConvert
+          );
+          if (nextToConvert) {
+            executeConversion(nextToConvert.id, nextToConvert.attemptId);
+          }
+        }
+      } else {
+        if (mergeInProgress.current && mergeStatus !== "merging" && mergeStatus !== "completed") {
+          const anyFailed = currentItems.some((i) => i.stage === "failed");
+          if (anyFailed) {
+            setMergeStatus("failed");
+            setMergeError("One or more files failed to upload.");
+            mergeInProgress.current = false;
+          } else {
+            const allUploaded =
+              currentItems.length > 0 &&
+              currentItems.every(
+                (i) => (i.stage === "verifying" && i.jobId && (i as any)._readyToConvert) || i.stage === "completed"
+              );
+            if (allUploaded) {
+              executeMergeOperation();
+            }
+          }
         }
       }
 
@@ -72,7 +106,7 @@ export function useBatchConverter(defaultTargetFormat?: string, toolSlug?: strin
     } finally {
       queueRunning.current = false;
     }
-  }, []);
+  }, [isMergeTool, mergeStatus]);
 
   // Add files to batch
   const addFiles = useCallback(
@@ -366,6 +400,107 @@ export function useBatchConverter(defaultTargetFormat?: string, toolSlug?: strin
     }
   };
 
+  // Execute Merge Operation across all uploaded items
+  const executeMergeOperation = async () => {
+    setMergeStatus("merging");
+    const current = itemsRef.current;
+    const jobIds = current.map((i) => i.jobId).filter(Boolean) as string[];
+
+    setItems((prev) =>
+      prev.map((i) => ({
+        ...i,
+        stage: "converting",
+        progress: 50,
+      }))
+    );
+
+    try {
+      const res = await fetch("/api/convert/merge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          toolSlug,
+          jobIds,
+          outputFilename: toolSlug === "images-to-pdf" ? "images.pdf" : "merged.pdf",
+        }),
+      });
+
+      const data = await safeParseJson(res);
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to merge files into PDF.");
+      }
+
+      const result = {
+        jobId: data.jobId,
+        outputFilename: data.outputFilename,
+        outputSize: data.outputSize,
+        outputMimeType: data.outputMimeType || "application/pdf",
+        downloadUrl: data.downloadUrl,
+        previewUrl: data.previewUrl || `/api/preview/${data.jobId}`,
+      };
+
+      setMergeResult(result);
+      setMergeStatus("completed");
+      setItems((prev) =>
+        prev.map((i) => ({
+          ...i,
+          stage: "completed",
+          progress: 100,
+          resultData: result,
+        }))
+      );
+    } catch (err: any) {
+      setMergeStatus("failed");
+      setMergeError(err.message || "Failed to merge files.");
+      setItems((prev) =>
+        prev.map((i) => ({
+          ...i,
+          stage: "failed",
+          error: err.message || "Merge failed.",
+        }))
+      );
+    } finally {
+      mergeInProgress.current = false;
+    }
+  };
+
+  // Start merge for all pending/queued items
+  const startMerge = useCallback(() => {
+    const current = itemsRef.current;
+    if (toolSlug === "merge-pdf" && current.length < 2) {
+      setMergeError("Please add at least 2 PDF files to merge.");
+      return;
+    }
+    if (toolSlug === "images-to-pdf" && current.length < 1) {
+      setMergeError("Please add at least 1 image to convert.");
+      return;
+    }
+
+    setMergeError(null);
+    mergeInProgress.current = true;
+    setMergeStatus("uploading");
+
+    setItems((prev) =>
+      prev.map((item) => ({
+        ...item,
+        stage: item.stage === "completed" ? "completed" : "queued",
+        attemptId: item.attemptId + 1,
+        progress: 0,
+        error: undefined,
+        errorStage: null,
+      }))
+    );
+  }, [toolSlug]);
+
+  // Reset merge state and files
+  const resetMerge = useCallback(() => {
+    mergeInProgress.current = false;
+    setMergeStatus("idle");
+    setMergeResult(null);
+    setMergeError(null);
+    setItems([]);
+  }, []);
+
   // Convert all valid pending/queued items
   const startConversion = useCallback(
     (targetIds?: string[]) => {
@@ -524,6 +659,31 @@ export function useBatchConverter(defaultTargetFormat?: string, toolSlug?: strin
     (i) => i.stage === "session" || i.stage === "uploading" || i.stage === "verifying" || i.stage === "converting" || i.stage === "queued"
   ).length;
 
+  // Reorder items
+  const moveItemUp = useCallback((id: string) => {
+    setItems((prev) => {
+      const idx = prev.findIndex((i) => i.id === id);
+      if (idx <= 0) return prev;
+      const copy = [...prev];
+      const temp = copy[idx - 1];
+      copy[idx - 1] = copy[idx];
+      copy[idx] = temp;
+      return copy;
+    });
+  }, []);
+
+  const moveItemDown = useCallback((id: string) => {
+    setItems((prev) => {
+      const idx = prev.findIndex((i) => i.id === id);
+      if (idx < 0 || idx >= prev.length - 1) return prev;
+      const copy = [...prev];
+      const temp = copy[idx + 1];
+      copy[idx + 1] = copy[idx];
+      copy[idx] = temp;
+      return copy;
+    });
+  }, []);
+
   return {
     items,
     addFiles,
@@ -537,6 +697,14 @@ export function useBatchConverter(defaultTargetFormat?: string, toolSlug?: strin
     setItemConverter,
     setBatchTargetFormat,
     setItemOptions,
+    moveItemUp,
+    moveItemDown,
+    isMergeTool,
+    mergeStatus,
+    mergeResult,
+    mergeError,
+    startMerge,
+    resetMerge,
     counts: {
       total: totalCount,
       completed: completedCount,

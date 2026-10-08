@@ -13,8 +13,8 @@ const execFileAsync = promisify(execFile);
 const TEST_DIR = path.join(process.cwd(), "tmp_lifecycle_test");
 
 describe("Upload, Verification & Conversion Lifecycle Tests", () => {
-  test("Configuration: Active Firebase Site as Domain", () => {
-    assert.strictEqual(siteConfig.domain, "https://convertall-site.web.app");
+  test("Configuration: Active Production Domain", () => {
+    assert.strictEqual(siteConfig.domain, "https://convertall.site");
   });
 
   test("Session Generation: Allowed Origin Handling", async () => {

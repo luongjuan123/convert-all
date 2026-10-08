@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
-import { adConfig } from "@/lib/advertising/ad-config";
+import { adConfig, formatPublisherId } from "@/lib/advertising/ad-config";
 
 export async function GET() {
-  const publisherId = adConfig.clientId ? adConfig.clientId.replace("ca-pub-", "") : "0000000000000000";
-  
+  const pubInfo = formatPublisherId(adConfig.clientId);
+
   // Official Google AdSense ads.txt format
-  const adsTxtContent = adConfig.clientId
-    ? `google.com, pub-${publisherId}, DIRECT, f08c47fec0942fa0\n`
-    : `# Google AdSense ads.txt template\n# Insert your publisher ID in NEXT_PUBLIC_ADSENSE_CLIENT_ID\n# Example: google.com, pub-XXXXXXXXXXXXXXXX, DIRECT, f08c47fec0942fa0\n`;
+  const adsTxtContent = pubInfo.isValid
+    ? `google.com, ${pubInfo.pubId}, DIRECT, f08c47fec0942fa0\n`
+    : `# Google AdSense ads.txt template\n# Set your publisher ID in NEXT_PUBLIC_ADSENSE_CLIENT_ID\n# Example: google.com, pub-XXXXXXXXXXXXXXXX, DIRECT, f08c47fec0942fa0\n`;
 
   return new NextResponse(adsTxtContent, {
     status: 200,
@@ -17,3 +17,4 @@ export async function GET() {
     },
   });
 }
+

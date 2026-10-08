@@ -16,6 +16,7 @@ const TEST_DIR = path.join(process.cwd(), "tmp_preview_test");
 
 describe("Result Previews and Batch Conversion Tests", () => {
   test("Multi-page PDF conversion generates distinct page artifacts", async () => {
+    await fs.rm(TEST_DIR, { recursive: true, force: true });
     await fs.mkdir(TEST_DIR, { recursive: true });
     const samplePdfPath = path.join(TEST_DIR, "multipage.pdf");
     const outputPngPath = path.join(TEST_DIR, "output_page.png");
@@ -36,6 +37,8 @@ describe("Result Previews and Batch Conversion Tests", () => {
     assert.strictEqual(result.artifacts[1].id, "page-2");
     assert.ok(result.artifacts[0].size > 0);
     assert.ok(result.artifacts[1].size > 0);
+
+    await fs.rm(TEST_DIR, { recursive: true, force: true });
   });
 
   test("Storage and Range Streaming for Preview (HTTP 206 & 200)", async () => {

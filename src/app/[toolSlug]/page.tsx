@@ -87,6 +87,22 @@ export default async function ToolPage({ params }: PageProps) {
     ],
   };
 
+  const jsonLdFaq =
+    tool.faq && tool.faq.length > 0
+      ? {
+          "@context": "https://schema.org",
+          "@type": "FAQPage",
+          mainEntity: tool.faq.map((item) => ({
+            "@type": "Question",
+            name: item.question,
+            acceptedAnswer: {
+              "@type": "Answer",
+              text: item.answer,
+            },
+          })),
+        }
+      : null;
+
   return (
     <div className="py-10 px-4 sm:px-6 lg:px-8 max-w-6xl mx-auto space-y-10">
       {/* JSON-LD Structured Data */}
@@ -98,6 +114,12 @@ export default async function ToolPage({ params }: PageProps) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdBreadcrumbs) }}
       />
+      {jsonLdFaq && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdFaq) }}
+        />
+      )}
 
       {/* Header Info */}
       <div className="text-center space-y-3">
@@ -116,7 +138,7 @@ export default async function ToolPage({ params }: PageProps) {
       />
 
       {/* Ad #1: Below main converter widget */}
-      <AdSlot placement="afterConverter" format="horizontal" />
+      <AdSlot placement="afterConverter" format="auto" />
 
       {/* How it works */}
       <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-8 space-y-6">
@@ -170,7 +192,7 @@ export default async function ToolPage({ params }: PageProps) {
       )}
 
       {/* Ad #2: Lower placement before footer */}
-      <AdSlot placement="beforeFooter" format="horizontal" />
+      <AdSlot placement="beforeFooter" format="auto" />
     </div>
   );
 }

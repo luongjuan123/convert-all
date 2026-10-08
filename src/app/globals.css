@@ -11,3 +11,8 @@
 * {
   box-sizing: border-box;
 }
+
+/* Google AdSense unfilled ad rule */
+ins.adsbygoogle[data-ad-status="unfilled"] {
+  display: none !important;
+}

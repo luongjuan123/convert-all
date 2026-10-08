@@ -11,6 +11,7 @@ import {
   Eye,
   CheckCircle2,
   Plus,
+  Loader2,
 } from "lucide-react";
 import { siteConfig } from "@/config/site";
 import { useBatchConverter } from "@/hooks/useBatchConverter";
@@ -46,6 +47,14 @@ export const ConverterWidget: React.FC<ConverterWidgetProps> = ({
     clearCompleted,
     setItemConverter,
     setBatchTargetFormat,
+    moveItemUp,
+    moveItemDown,
+    isMergeTool,
+    mergeStatus,
+    mergeResult,
+    mergeError,
+    startMerge,
+    resetMerge,
     counts,
   } = useBatchConverter(defaultTargetFormat, toolSlug);
 
@@ -189,19 +198,87 @@ export const ConverterWidget: React.FC<ConverterWidgetProps> = ({
         {/* State B: Active Batch List (1 or more files) */}
         {items.length > 0 && (
           <div className="space-y-5">
-            {/* Batch Action Controls */}
-            <BatchControls
-              counts={counts}
-              commonFormats={commonFormats}
-              selectedBatchFormat={selectedBatchFormat}
-              onBatchFormatChange={handleBatchFormatChange}
-              onConvertAll={() => startConversion()}
-              onAddMore={() => fileInputRef.current?.click()}
-              onDownloadZip={handleDownloadAllZip}
-              onCancelAll={cancelAll}
-              onRetryFailed={retryAllFailed}
-              onClearCompleted={clearCompleted}
-            />
+            {/* Batch Action Controls vs Merge Controls */}
+            {isMergeTool ? (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 rounded-2xl bg-slate-800/40 border border-slate-700/60 shadow-lg">
+                <div className="flex items-center gap-3">
+                  <span className="text-sm font-semibold text-white">
+                    {items.length} {toolSlug === "images-to-pdf" ? (items.length === 1 ? "image" : "images") : (items.length === 1 ? "PDF file" : "PDF files")} ready
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-cyan-400 hover:text-cyan-300 transition"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Add more
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  {mergeStatus === "idle" && (
+                    <button
+                      type="button"
+                      onClick={startMerge}
+                      disabled={toolSlug === "merge-pdf" ? items.length < 2 : items.length < 1}
+                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-500/25 hover:opacity-95 disabled:opacity-40 disabled:pointer-events-none transition"
+                    >
+                      <Sparkles className="h-4 w-4" />
+                      {toolSlug === "merge-pdf"
+                        ? items.length < 2
+                          ? "Select at least 2 PDFs"
+                          : `Merge ${items.length} PDFs into One`
+                        : `Convert ${items.length} ${items.length === 1 ? "Image" : "Images"} to PDF`}
+                    </button>
+                  )}
+
+                  {(mergeStatus === "uploading" || mergeStatus === "merging") && (
+                    <div className="inline-flex items-center gap-2 rounded-xl bg-blue-600/20 text-blue-300 border border-blue-500/30 px-5 py-2.5 text-sm font-medium">
+                      <Loader2 className="h-4 w-4 animate-spin text-cyan-400" />
+                      <span>
+                        {mergeStatus === "uploading" ? "Uploading files..." : "Merging into PDF..."}
+                      </span>
+                    </div>
+                  )}
+
+                  {mergeStatus === "completed" && (
+                    <button
+                      type="button"
+                      onClick={resetMerge}
+                      className="inline-flex items-center gap-1.5 text-xs text-slate-300 hover:text-white px-3.5 py-2 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 transition"
+                    >
+                      <RotateCcw className="h-3.5 w-3.5" /> Start New Merge
+                    </button>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <BatchControls
+                counts={counts}
+                commonFormats={commonFormats}
+                selectedBatchFormat={selectedBatchFormat}
+                onBatchFormatChange={handleBatchFormatChange}
+                onConvertAll={() => startConversion()}
+                onAddMore={() => fileInputRef.current?.click()}
+                onDownloadZip={handleDownloadAllZip}
+                onCancelAll={cancelAll}
+                onRetryFailed={retryAllFailed}
+                onClearCompleted={clearCompleted}
+              />
+            )}
+
+            {/* Merge Error Alert */}
+            {mergeError && (
+              <div className="rounded-xl border border-rose-500/30 bg-rose-950/30 p-4 text-sm text-rose-300 flex items-center justify-between gap-3">
+                <span>{mergeError}</span>
+                <button
+                  type="button"
+                  onClick={startMerge}
+                  className="px-3 py-1 bg-rose-500/20 hover:bg-rose-500/30 rounded text-xs font-semibold text-rose-200 transition"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
 
             {/* Drag & Drop mini target strip */}
             <div
@@ -219,10 +296,16 @@ export const ConverterWidget: React.FC<ConverterWidgetProps> = ({
 
             {/* List of File Items */}
             <div className="space-y-2.5">
-              {items.map((item) => (
+              {items.map((item, idx) => (
                 <FileItemRow
                   key={item.id}
                   item={item}
+                  index={idx}
+                  isMergeMode={isMergeTool}
+                  canMoveUp={idx > 0 && item.stage === "pending"}
+                  canMoveDown={idx < items.length - 1 && item.stage === "pending"}
+                  onMoveUp={() => moveItemUp(item.id)}
+                  onMoveDown={() => moveItemDown(item.id)}
                   onPreview={(it) => setPreviewingItem(it)}
                   onStart={(id) => startConversion([id])}
                   onCancel={cancelItem}
@@ -233,8 +316,54 @@ export const ConverterWidget: React.FC<ConverterWidgetProps> = ({
               ))}
             </div>
 
-            {/* Dedicated Single-Item Result Spotlight (when exactly 1 item and completed) */}
-            {items.length === 1 && items[0].stage === "completed" && items[0].resultData && (
+            {/* Merge Completed Result Spotlight */}
+            {isMergeTool && mergeStatus === "completed" && mergeResult && (
+              <div className="mt-6 rounded-2xl border border-emerald-500/30 bg-emerald-950/20 p-6 text-center shadow-xl">
+                <div className="flex justify-center mb-3">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-400">
+                    <CheckCircle2 className="h-6 w-6" />
+                  </div>
+                </div>
+                <h4 className="text-xl font-bold text-white mb-1">
+                  {toolSlug === "merge-pdf" ? "PDFs Merged Successfully!" : "PDF Created Successfully!"}
+                </h4>
+                <p className="text-xs text-slate-400 mb-5">
+                  {mergeResult.outputFilename} ({formatBytes(mergeResult.outputSize)})
+                </p>
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-3 max-w-md mx-auto">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setPreviewingItem({
+                        id: mergeResult.jobId,
+                        attemptId: 1,
+                        file: new File([], mergeResult.outputFilename),
+                        converterId: toolSlug || "merge-pdf",
+                        availableConverters: [],
+                        options: {},
+                        stage: "completed",
+                        progress: 100,
+                        uploadStats: { uploadedBytes: 0, totalBytes: 0, speedMbPerSec: 0, remainingSeconds: 0 },
+                        resultData: mergeResult,
+                      })
+                    }
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 px-5 py-2.5 text-sm font-semibold transition"
+                  >
+                    <Eye className="h-4 w-4" /> Preview PDF
+                  </button>
+                  <a
+                    href={mergeResult.downloadUrl}
+                    download={mergeResult.outputFilename}
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 hover:opacity-95 transition"
+                  >
+                    <Download className="h-4 w-4" /> Download Merged PDF
+                  </a>
+                </div>
+              </div>
+            )}
+
+            {/* Dedicated Single-Item Result Spotlight (for non-merge tool when exactly 1 item and completed) */}
+            {!isMergeTool && items.length === 1 && items[0].stage === "completed" && items[0].resultData && (
               <div className="mt-6 rounded-2xl border border-emerald-500/30 bg-emerald-950/15 p-6 text-center">
                 <div className="flex justify-center mb-3">
                   <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-400">
